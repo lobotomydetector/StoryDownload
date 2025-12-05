@@ -405,7 +405,8 @@
                 card.style.animationDelay = `${index * 0.1}s`;
 
                 // Use proxy endpoint with ID to completely hide source URL
-                const proxyUrl = `/api/proxy?id=${story.id}`;
+                // Pass username so the proxy can generate a nice filename if saved
+                const proxyUrl = `/api/proxy?id=${story.id}&username=${encodeURIComponent(username)}`;
                 
                 const preview = story.type === 'video' 
                     ? `<video src="${proxyUrl}" controls playsinline loop></video>`
