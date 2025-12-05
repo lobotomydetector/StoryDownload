@@ -55,10 +55,61 @@ def fetch():
         'count': len(safe_stories)
     })
 
+import base64
+import json
+import re
+
+def get_media_filename(url, username):
+    """Generate a unique filename for the media URL"""
+    media_id_part = None
+    
+    # Strategy 1: Regex for standard image IDs (e.g. 123_456_789)
+    id_match = re.search(r'(\d+)_\d+_\d+', url)
+    if id_match:
+        media_id_part = id_match.group(1)[:15]
+    
+    # Strategy 2: Decode 'efg' parameter for video IDs
+    if not media_id_part and 'efg=' in url:
+        try:
+            # Extract efg value
+            efg_match = re.search(r'efg=([^&]+)', url)
+            if efg_match:
+                # Add padding if needed for base64
+                efg_str = efg_match.group(1)
+                padded = efg_str + '=' * (-len(efg_str) % 4)
+                decoded = base64.urlsafe_b64decode(padded)
+                data = json.loads(decoded)
+                
+                # Look for various ID fields
+                for key in ['xpv_asset_id', 'asset_id', 'image_id', 'id']:
+                    if key in data:
+                        media_id_part = str(data[key])[:15]
+                        break
+        except Exception:
+            pass
+            
+    # Strategy 3: Fallback to hash of URL
+    if not media_id_part:
+        import hashlib
+        media_id_part = hashlib.md5(url.encode()).hexdigest()[:10]
+        
+    # Determine extension
+    ext = 'bin'
+    if '.mp4' in url or 'video' in url:
+        ext = 'mp4'
+    elif '.jpg' in url or '.jpeg' in url or 'image' in url:
+        ext = 'jpg'
+    elif '.png' in url:
+        ext = 'png'
+        
+    return f'{username}_{media_id_part}.{ext}'
+
 @app.route('/api/proxy')
 def proxy():
     """Proxy endpoint to stream media files using ID (hides source URL)"""
     media_id = request.args.get('id')
+    username = request.args.get('username', 'story')
+    
     if not media_id:
         return jsonify({'error': 'Media ID required'}), 400
     
@@ -74,12 +125,16 @@ def proxy():
         # Forward the content type
         content_type = response.headers.get('content-type', 'application/octet-stream')
         
+        # Generate filename for "Save As" actions even when viewing inline
+        filename = get_media_filename(url, username)
+        
         # Stream the content back to the client
         return Response(
             response.iter_content(chunk_size=8192),
             headers={
                 'Content-Type': content_type,
-                'Cache-Control': 'public, max-age=3600'
+                'Cache-Control': 'public, max-age=3600',
+                'Content-Disposition': f'inline; filename="{filename}"'
             }
         )
     except Exception as e:
@@ -103,27 +158,8 @@ def download():
         response = requests.get(url, stream=True)
         response.raise_for_status()
         
-        # Extract Instagram media ID from URL (e.g., "587269090_18613442032019133_...")
-        import re
-        media_id_part = None
-        id_match = re.search(r'(\d+)_\d+_\d+', url)
-        if id_match:
-            media_id_part = id_match.group(1)[:10]  # First 10 digits to keep it short
-        
-        # Determine file extension
-        content_type = response.headers.get('content-type', '')
-        if 'video' in content_type or url.endswith('.mp4'):
-            ext = 'mp4'
-        elif 'image' in content_type or any(url.endswith(e) for e in ['.jpg', '.jpeg', '.png']):
-            ext = 'jpg'
-        else:
-            ext = 'bin'
-        
-        # Create filename: username_mediaID.ext
-        if media_id_part:
-            filename = f'{username}_{media_id_part}.{ext}'
-        else:
-            filename = f'{username}_story.{ext}'
+        # Generate filename
+        filename = get_media_filename(url, username)
         
         # Create response with download headers
         return Response(
