@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram Stories Viewer</title>
+    <style>
+        :root {
+            --bg-color: #0a0a0a;
+            --card-bg: rgba(20, 20, 20, 0.8);
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --accent-gradient: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+            --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+            --radius-lg: 24px;
+            --radius-md: 16px;
+            --radius-sm: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 2rem;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(220, 39, 67, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(188, 24, 136, 0.1) 0%, transparent 40%);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .search-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .search-form {
+            display: flex;
+            gap: 1rem;
+        }
+
+        input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.4);
+            border: var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 1rem 1.5rem;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: #e6683c;
+            background: rgba(0, 0, 0, 0.6);
+            box-shadow: 0 0 0 4px rgba(230, 104, 60, 0.1);
+        }
+
+        button {
+            background: var(--accent-gradient);
+            border: none;
+            border-radius: var(--radius-md);
+            padding: 1rem 2.5rem;
+            color: white;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(230, 104, 60, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            display: none;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid #e6683c;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: rgba(220, 38, 38, 0.1);
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            border-radius: var(--radius-md);
+            padding: 1rem 1.5rem;
+            color: #fca5a5;
+            display: none;
+            margin-bottom: 1rem;
+        }
+
+        .success-message {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            display: none;
+        }
+
+        .stories-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .story-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: var(--glass-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            animation: fadeIn 0.5s ease backwards;
+        }
+
+        .story-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .story-preview {
+            width: 100%;
+            aspect-ratio: 9/16;
+            background: rgba(0, 0, 0, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .story-preview img,
+        .story-preview video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .story-type-badge {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            padding: 0.4rem 0.8rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .story-actions {
+            padding: 1.5rem;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .download-btn {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border: var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 0.8rem;
+            color: white;
+            text-decoration: none;
+            text-align: center;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .download-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .open-btn {
+            background: var(--accent-gradient);
+        }
+
+        .open-btn:hover {
+            box-shadow: 0 4px 15px rgba(230, 104, 60, 0.4);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-secondary);
+            display: none;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+        /* Mobile Optimizations */
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .search-card {
+                padding: 1.5rem;
+            }
+
+            .search-form {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+
+            .stories-grid {
+                grid-template-columns: 1fr; /* Single column on mobile */
+                gap: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📸 Stories Viewer</h1>
+            <p class="subtitle">View and download Instagram stories anonymously</p>
+        </div>
+
+        <div class="search-card">
+            <form class="search-form" id="searchForm">
+                <input 
+                    type="text" 
+                    id="usernameInput" 
+                    placeholder="Enter Instagram username (e.g. natgeo)"
+                    autocomplete="off"
+                    required
+                >
+                <button type="submit" id="searchBtn">Search Stories</button>
+            </form>
+        </div>
+
+        <div class="error" id="errorMessage"></div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Fetching stories...</p>
+        </div>
+
+        <div class="success-message" id="successMessage"></div>
+
+        <div class="empty-state" id="emptyState">
+            <svg fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"/>
+            </svg>
+            <h3>No Stories Found</h3>
+            <p>This account has no active stories or may be private.</p>
+        </div>
+
+        <div class="stories-grid" id="storiesGrid"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('searchForm');
+        const usernameInput = document.getElementById('usernameInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const loading = document.getElementById('loading');
+        const errorMessage = document.getElementById('errorMessage');
+        const successMessage = document.getElementById('successMessage');
+        const emptyState = document.getElementById('emptyState');
+        const storiesGrid = document.getElementById('storiesGrid');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await fetchStories();
+        });
+
+        async function fetchStories() {
+            const username = usernameInput.value.trim().replace('@', '');
+            
+            if (!username) return;
+
+            // Reset UI
+            loading.style.display = 'block';
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+            emptyState.style.display = 'none';
+            storiesGrid.innerHTML = '';
+            searchBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/fetch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch stories');
+                }
+
+                const data = await response.json();
+                loading.style.display = 'none';
+                searchBtn.disabled = false;
+
+                if (data.stories && data.stories.length > 0) {
+                    successMessage.textContent = `Found ${data.count} ${data.count === 1 ? 'story' : 'stories'} for @${username}`;
+                    successMessage.style.display = 'block';
+                    renderStories(data.stories, username);
+                } else {
+                    emptyState.style.display = 'block';
+                }
+
+            } catch (error) {
+                console.error(error);
+                loading.style.display = 'none';
+                searchBtn.disabled = false;
+                errorMessage.textContent = 'Failed to fetch stories. Please try again.';
+                errorMessage.style.display = 'block';
+            }
+        }
+
+        function renderStories(stories, username = 'story') {
+            stories.forEach((story, index) => {
+                const card = document.createElement('div');
+                card.className = 'story-card';
+                card.style.animationDelay = `${index * 0.1}s`;
+
+                // Use proxy endpoint with ID to completely hide source URL
+                const proxyUrl = `/api/proxy?id=${story.id}`;
+                
+                const preview = story.type === 'video' 
+                    ? `<video src="${proxyUrl}" controls playsinline loop></video>`
+                    : `<img src="${proxyUrl}" alt="Story" loading="lazy">`;
+
+                card.innerHTML = `
+                    <div class="story-preview">
+                        ${preview}
+                        <div class="story-type-badge">${story.type}</div>
+                    </div>
+                    <div class="story-actions">
+                        <a href="${proxyUrl}" target="_blank" class="download-btn open-btn">
+                            <span>🔗</span> Open
+                        </a>
+                        <a href="/api/download?id=${story.id}&username=${encodeURIComponent(username)}" class="download-btn">
+                            <span>⬇️</span> Download
+                        </a>
+                    </div>
+                `;
+
+                storiesGrid.appendChild(card);
+            });
+        }
+    </script>
+</body>
+</html>
