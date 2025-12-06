@@ -122,7 +122,10 @@ def proxy():
     
     try:
         # Prepare headers for the upstream request
-        headers = {}
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept-Encoding': 'identity' # Crucial: prevent requests from decompressing (messes up ranges)
+        }
         if 'Range' in request.headers:
             headers['Range'] = request.headers['Range']
             
