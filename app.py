@@ -46,7 +46,8 @@ def fetch():
         # Add to safe list (without the original URL)
         safe_stories.append({
             'id': media_id,
-            'type': story['type']
+            'type': story['type'],
+            'time_str': story.get('time_str', '')
         })
     
     return jsonify({
@@ -104,6 +105,8 @@ def get_media_filename(url, username):
         
     return f'{username}_{media_id_part}.{ext}'
 
+
+    
 @app.route('/api/proxy')
 def proxy():
     """Proxy endpoint to stream media files using ID (hides source URL)"""
@@ -118,24 +121,38 @@ def proxy():
         return jsonify({'error': 'Invalid or expired media ID'}), 404
     
     try:
-        # Fetch the media file
-        response = requests.get(url, stream=True)
-        response.raise_for_status()
+        # Prepare headers for the upstream request
+        headers = {}
+        if 'Range' in request.headers:
+            headers['Range'] = request.headers['Range']
+            
+        # Fetch the media file with stream=True
+        response = requests.get(url, stream=True, headers=headers)
         
-        # Forward the content type
-        content_type = response.headers.get('content-type', 'application/octet-stream')
+        # Forward specific headers
+        excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+        resp_headers = [
+            (name, value) for (name, value) in response.headers.items()
+            if name.lower() not in excluded_headers
+        ]
         
-        # Generate filename for "Save As" actions even when viewing inline
+        # Add Content-Length if present (requests decompressing might mess this up, but stream=True usually keeps it)
+        if 'content-length' in response.headers:
+            resp_headers.append(('Content-Length', response.headers['content-length']))
+            
+        # Generate filename for "Save As" actions
         filename = get_media_filename(url, username)
         
+        # Add our custom headers
+        resp_headers.append(('Content-Disposition', f'inline; filename="{filename}"'))
+        resp_headers.append(('Cache-Control', 'public, max-age=3600'))
+        resp_headers.append(('Accept-Ranges', 'bytes'))
+
         # Stream the content back to the client
         return Response(
             response.iter_content(chunk_size=8192),
-            headers={
-                'Content-Type': content_type,
-                'Cache-Control': 'public, max-age=3600',
-                'Content-Disposition': f'inline; filename="{filename}"'
-            }
+            status=response.status_code,
+            headers=resp_headers
         )
     except Exception as e:
         return jsonify({'error': str(e)}), 500
